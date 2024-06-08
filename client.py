@@ -26,6 +26,7 @@ text_channels = []
 audio_channels = {}
 text_channel_messages = []
 ALL_MESSAGES_VISIBLE = True  # True for view log
+new_messages_num = -1
 
 # Pyaudio variables
 FORMAT = pyaudio.paInt16
@@ -295,7 +296,7 @@ class Client:
         Handle the request server sent
         data:  message sent from server
         """
-        global online_users, text_channels, text_channel_messages
+        global online_users, text_channels, text_channel_messages, new_messages_num
         if data == 'Not Error':
             return
         if type(data) == str:
@@ -308,6 +309,7 @@ class Client:
             print(f'\ntext channel - {self.text_channel}: updated')
             for str_message in fields[1:]:
                 text_channel_messages.append(str_message)
+            new_messages_num += 1
         elif fields[0] == 'LOGS':
             self.logged_in = 'Y' == fields[1]
             if self.logged_in:
@@ -483,7 +485,7 @@ def main() -> None:
     """
     Main Function
     """
-    global display_width, display_height, die
+    global display_width, display_height, die, new_messages_num
     client = None
     try:
         # setting client parameters and connecting to server
@@ -615,6 +617,9 @@ def main() -> None:
                 if (i + 1) * 40 > display_height - 100:  # i * 40 + 20 + high of text_channel_surface that equals to 20
                     break
                 screen.blit(text_channel_surface, (10, i * 40 + 20))
+                if new_messages_num > 0 and client.text_channel == text_channels[i]:
+                    new_messages_num_surface = font_20.render(f'{new_messages_num}', True, (128, 0, 0))
+                    screen.blit(new_messages_num_surface, (30 + text_channel_surface.get_width(), i * 40 + 25))
 
             audio_channel_index = 0
             place_of_audio_channel = len(text_channels) * 40 + 20
@@ -654,6 +659,7 @@ def main() -> None:
                         message = message[:-1]
                     elif (event.key == pygame.K_KP_ENTER or event.key == pygame.K_RETURN) and message != '':
                         client.send_with_size_tcp(f'NMSC~{message}')
+                        new_messages_num = -1
                         message = ''
                     else:
                         if event.unicode.isalpha() or event.unicode.isnumeric() or event.unicode in SPECIAL_CHARACTERS:
@@ -679,6 +685,7 @@ def main() -> None:
                             if channel_num < len(text_channels) and client.text_channel != text_channels[channel_num]:
                                 client.text_channel = text_channels[channel_num]
                                 client.send_with_size_tcp(f'TXTC~{client.text_channel}')
+                                new_messages_num = -1
                             else:
                                 try:
                                     audio_channel_num = 0
@@ -731,10 +738,11 @@ def main() -> None:
                     elif event.button == 5:
                         if not is_down:
                             text_high -= 10
+                        elif new_messages_num > 0:
+                            new_messages_num = 0
                     elif event.button == 4:
                         if text_high < 10:
                             text_high += 10
-
             if client.deafened:
                 screen.blit(undeafen_icon, (250, display_height - 62))
             else:
